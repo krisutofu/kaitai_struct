@@ -4098,6 +4098,128 @@ types:
         size: ofs_end - ofs_start
 ----
 
+[[validation]]
+=== Value Validation
+
+Value validation is a mechanism which ensures that certain fields satisfy
+given conditions at runtime.
+
+Some constraints cannot (yet) be expressed imperatively in Kaitai Struct.
+Validation ensures that associated fields satisfy certain formulas when files are
+loaded and saved. It is also useful for debugging to prevent invalid
+binary output.
+
+The `contents` key as explained in <<magic,Checking for "magic" signatures>>
+is one example of validating that a field contains a specific value. Otherwise a
+ValidationError will occur where it will show the expected and actual value.
+The "magic" example can be written more explicitly using `valid` with an
+expression value.
+
+[source,yaml]
+----
+seq:
+  - id: magic
+    size: 4
+    valid: '[0xca, 0xfe, 0xba, 0xbe]'
+----
+
+Many more examples are possible.
+Consider a sorted but fixed-size sequence of fields
+
+[source,yaml]
+----
+seq:
+  - id: field0
+    type: u4
+  - id: field1
+    type: u4
+    # ensures that field1 >= field0
+    valid:
+      min: field0
+  - id: field2
+    type: u4
+    # ensures that field2 >= field1
+    valid:
+      min: field1
+  - id: field3
+    type: u4
+    # a more explicit notation
+    valid:
+      expr: _ >= field2
+----
+
+`min: 'value'` ensures that the current field's value is greater equal than `'value'`.
+
+One `min` can be combined with one `max`. This way, a range can be specified.
+
+[source,yaml]
+----
+seq:
+  - id: range_start
+    type: u4
+  - id: range_end
+    type: u4
+    valid:
+      min: range_start
+  - id: voltage_level
+    type: u4
+    valid:
+      min: range_start 
+      max: range_end
+----
+
+A related option is `eq` which checks the validated field for equality
+with another value. It is like `min` and `max` at the same time.
+
+A generalization of equality can be the element-of relation to a set
+of values. The element-of relation can be queried via `any-of`:
+
+[source,yaml]
+----
+seq:
+  - id: story_points
+    type: u1
+    # story_points can be any of these fibonacci numbers
+    valid:
+      any-of: [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
+----
+
+Alignment of fields is another possible application for validation.
+
+[source,yaml]
+----
+seq:
+  - id: ofs_part2
+    type: u4
+    valid:
+      expr: _ % 16 == 0
+    doc: must be a 16-byte aligned value.
+  # ...
+
+instances:
+  body:
+    pos: ofs_part2
+    type: part2
+
+types:
+  part2:
+    seq:
+      - id: data
+        size: 32
+----
+
+Validation might not generate code which automatically satisfies the validation
+condition. In the case of alignment it is advisable to round up the size of previous
+fields to make the alignment imperative.
+
+More elaborate general conditions can be formulated using the
+Kaitai Struct expression language with `valid: expr:`. In theory, all other options
+can also be expressed with the general `expr` option with more reading effort.
+The validation `expr` requires a boolean value which must evaluate to true to be valid.
+The special variable `_` can be used to refer to the validated current field.
+
+Combined with `if` conditions, a powerful facility is available for use.
+
 == Common pitfalls
 
 This section illustrates problems that are encountered frequently by
